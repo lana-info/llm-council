@@ -1,13 +1,36 @@
 [project]
-name = "llm-council"
+name = "llm-council-mcp"
 version = "0.1.0"
-description = "Your LLM Council"
+description = "MCP server that consults multiple LLMs and provides synthesized guidance"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
-    "python-dotenv>=1.0.0",
-    "httpx>=0.27.0",
-    "pydantic>=2.9.0",
+license = { text = "MIT" }
+authors = [{ name = "Amiable" }]
+maintainers = [{ email = "contact@amiable.dev" }]
+keywords = ["mcp", "llm", "ai", "openrouter", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
+
+dependencies = ["python-dotenv>=1.0.0", "httpx>=0.27.0", "mcp>=1.22.0"]
+
+[project.urls]
+Homepage = "https://github.com/amiable-dev/llm-council-mcp"
+Repository = "https://github.com/amiable-dev/llm-council-mcp"
+Issues = "https://github.com/amiable-dev/llm-council-mcp/issues"
+
+[project.scripts]
+llm-council = "llm_council_mcp.mcp_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["llm_council_mcp"]

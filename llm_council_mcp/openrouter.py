@@ -1,8 +1,9 @@
-"""OpenRouter API client for making LLM requests."""
+"""OpenRouter API client for parallel LLM queries."""
 
 import httpx
+import asyncio
 from typing import List, Dict, Any, Optional
-from .config import OPENROUTER_API_KEY, OPENROUTER_API_URL
+from llm_council_mcp.config import OPENROUTER_API_KEY, OPENROUTER_API_URL
 
 
 async def query_model(
