@@ -249,7 +249,3 @@ This derivative work respects that spirit while packaging the core concept for b
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
-**Dual Copyright:**
-- Original llm-council: Copyright (c) 2024 Andrej Karpathy
-- MCP server and derivative work: Copyright (c) 2024 Amiable
