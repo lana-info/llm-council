@@ -71,10 +71,18 @@ nav:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
     - Configuration: getting-started/configuration.md
+  - Deployment:
+    - Overview: deployment/index.md
+    - Railway: deployment/railway.md
+    - Render: deployment/render.md
+    - Local Docker: deployment/local.md
   - Guides:
     - MCP Server: guides/mcp.md
     - HTTP API: guides/http-api.md
     - Python Library: guides/python.md
+  - Integrations:
+    - Overview: integrations/index.md
+    - n8n: integrations/n8n.md
   - Architecture:
     - Overview: architecture/overview.md
     - ADRs:
@@ -110,6 +118,8 @@ nav:
       - ADR-034 Agent Skills: adr/ADR-034-agent-skills-verification.md
       - ADR-035 DevSecOps: adr/ADR-035-devsecops-implementation.md
       - ADR-036 Output Quality: adr/ADR-036-output-quality-quantification.md
+      - ADR-037 n8n Integration: adr/ADR-037-n8n-workflow-integration.md
+      - ADR-038 One-Click Deployment: adr/ADR-038-one-click-deployment-strategy.md
   - Blog:
     - Multi-Model Architecture: blog/01-multi-model-architecture.md
     - Fault-Tolerant Gateway: blog/02-fault-tolerant-gateway.md
@@ -118,6 +128,8 @@ nav:
     - Detecting Evaluator Bias: blog/05-detecting-evaluator-bias.md
     - Accuracy Ceiling: blog/06-accuracy-ceiling.md
     - Shadow Mode Auditions: blog/07-shadow-mode-auditions.md
+    - n8n Workflow Automation: blog/08-n8n-workflow-automation.md
+    - One-Click Deployment: blog/09-one-click-deployment.md
   - API Reference: api.md
   - Contributing: contributing.md
 
