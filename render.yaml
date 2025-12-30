@@ -8,6 +8,7 @@ services:
   - type: web
     name: llm-council
     runtime: docker
+    plan: free
     dockerfilePath: deploy/railway/Dockerfile
     envVars:
       # Required: OpenRouter API key for outgoing LLM calls
