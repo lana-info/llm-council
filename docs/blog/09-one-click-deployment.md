@@ -30,7 +30,7 @@ With [ADR-038](../adr/ADR-038-one-click-deployment-strategy.md) (our Architectur
 
 | Platform | Deploy | Cost |
 |----------|--------|------|
-| **Railway** | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github) | ~$5/mo |
+| **Railway** | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj) | ~$5/mo |
 | **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/amiable-dev/llm-council) | Free tier |
 
 Click the button, select the repository, add your API keys (`OPENROUTER_API_KEY` and `LLM_COUNCIL_API_TOKEN`). Done.
@@ -101,7 +101,7 @@ The council is now running at `http://localhost:8000`.
 
 1. **Click Deploy on Railway**
 
-   [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github)
+   [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj)
 
 2. **Select the Repository**
 

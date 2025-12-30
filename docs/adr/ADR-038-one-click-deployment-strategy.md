@@ -159,7 +159,7 @@ llm-council-railway/
 
 4. **Add deploy button to README.md:**
 ```markdown
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/XXX?referralCode=amiable-dev)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj)
 ```
 
 5. **Submit to Railway Template Marketplace**
@@ -204,7 +204,7 @@ Deploy your own LLM Council instance in one click:
 
 | Platform | Deploy | Free Tier |
 |----------|--------|-----------|
-| Railway | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/XXX) | $5/month |
+| Railway | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj) | $5/month |
 | Render | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=...) | 750 hrs/mo |
 
 ### Manual Setup

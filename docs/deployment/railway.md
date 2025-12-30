@@ -10,7 +10,7 @@ Deploy LLM Council to Railway in under 5 minutes.
 
 ## Deploy from GitHub
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj)
 
 Click the button above, then:
 
@@ -136,6 +136,12 @@ Authorization: Bearer your-token-here
 | Heavy (500+ queries/day) | $20+ |
 
 Railway bills based on actual usage (CPU, memory, network).
+
+## Support
+
+For Railway-specific issues with this template, visit the [LLM Council Template Support](https://station.railway.com/templates/llm-council-4b3770c4) page.
+
+For general LLM Council issues, open an issue on [GitHub](https://github.com/amiable-dev/llm-council/issues).
 
 ## Next Steps
 

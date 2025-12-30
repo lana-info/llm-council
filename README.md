@@ -28,7 +28,7 @@ Deploy your own LLM Council instance:
 
 | Platform | Deploy | Best For |
 |----------|--------|----------|
-| **Railway** | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github) | Production, webhooks |
+| **Railway** | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj) | Production, webhooks |
 | **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/amiable-dev/llm-council) | Evaluation, free tier |
 
 **Required Environment Variables:**

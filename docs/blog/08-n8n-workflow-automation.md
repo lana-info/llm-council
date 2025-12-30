@@ -65,7 +65,7 @@ LLM Council is open source and self-hosted. You'll need:
 
    **Option A: One-click deploy** (recommended):
 
-   [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github)
+   [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj)
 
    **Option B: Local/manual:**
    ```bash
@@ -302,7 +302,7 @@ Fallback options:
 
    **Option A: One-click deploy** (recommended for production):
 
-   [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github)
+   [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/llm-council?referralCode=K9dsYj)
 
    **Option B: Local development:**
    ```bash
