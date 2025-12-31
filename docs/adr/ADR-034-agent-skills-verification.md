@@ -1,37 +1,79 @@
 # ADR-034: Agent Skills Integration for Work Verification
 
-**Status:** Draft (Revised per LLM Council Review)
-**Date:** 2025-12-28
+**Status:** Draft v2.0 (Revised per Open Standard & LLM Council Review)
+**Date:** 2025-12-31
+**Version:** 2.0
 **Decision Makers:** Engineering, Architecture
-**Council Review:** Completed - High Tier (3/4 models: GPT-5.2-pro, Gemini-3-Pro, Grok-4.1)
+**Council Review:** Completed - Reasoning Tier (4/4 models: GPT-5.2, Gemini-3-Pro, Grok-4.1, Claude-Opus-4.5)
+**Supersedes:** ADR-034 v1.0 (2025-12-28)
 
 ---
 
 ## Context
 
-### The Emergence of Agent Skills
+### The Agent Skills Open Standard
 
-Agent Skills have emerged as a cross-platform standard for extending AI agent capabilities. Both [OpenAI's Codex CLI](https://developers.openai.com/codex/skills/) and [Anthropic's Claude Code](https://code.claude.com/docs/en/skills) now support skills via a lightweight filesystem-based specification:
+On December 18, 2025, Anthropic published [Agent Skills as an open standard](https://agentskills.io) for cross-platform portability. The specification, maintained at [agentskills.io/specification](https://agentskills.io/specification), has been rapidly adopted by major platforms:
+
+| Platform | Adoption Date | Status |
+|----------|---------------|--------|
+| [Claude Code](https://code.claude.com/docs/en/skills) | Native | Full support |
+| [GitHub Copilot](https://code.visualstudio.com/docs/copilot/customization/agent-skills) | Dec 18, 2025 | Full support |
+| [OpenAI Codex CLI](https://developers.openai.com/codex/skills/) | Dec 20, 2025 | Full support |
+| Microsoft VS Code | Dec 18, 2025 | Full support |
+| Atlassian, Figma, Cursor | Dec 2025 | Adopted |
+| Amp, Letta, goose | Dec 2025 | Adopted |
+
+Partner-built skills from Canva, Stripe, Notion, and Zapier were available at launch.
+
+### Specification Structure
+
+Skills are organized as directories containing a `SKILL.md` file with YAML frontmatter:
 
 ```
-skill-name/
-├── SKILL.md          # Required: YAML frontmatter + instructions
-├── scripts/          # Optional: Helper scripts
-└── references/       # Optional: Documentation
+skill-name/                   # Directory name must match 'name' field
+├── SKILL.md                  # Required: YAML frontmatter + instructions
+├── scripts/                  # Optional: Executable code
+├── references/               # Optional: Additional documentation
+└── assets/                   # Optional: Templates, data files
 ```
 
-The `SKILL.md` file uses YAML frontmatter for metadata and Markdown for instructions:
+The `SKILL.md` file uses YAML frontmatter with required and optional fields:
 
 ```yaml
 ---
-name: skill-name
-description: What the skill does and when to use it
+# Required fields
+name: skill-name              # 1-64 chars, lowercase alphanumeric + hyphens
+description: |                # 1-1024 chars with keywords
+  What the skill does and when to use it.
+  Keywords: verify, validate, review
+
+# Optional fields (per agentskills.io specification)
+license: Apache-2.0
+compatibility: "Requires Python 3.11+"
+metadata:
+  category: verification
+  domain: ai-governance
+allowed-tools: "Bash(git:*) Read Grep"  # EXPERIMENTAL - see Security section
 ---
 
 [Markdown instructions here]
 ```
 
-This specification is intentionally minimal, enabling cross-platform compatibility. As [Simon Willison notes](https://simonwillison.net/2025/Dec/12/openai-skills/): "any LLM tool with the ability to navigate and read from a filesystem should be capable of using them."
+**Validation**: Use `skills-ref validate ./my-skill` to verify compliance.
+
+As [Simon Willison notes](https://simonwillison.net/2025/Dec/19/agent-skills/): "any LLM tool with the ability to navigate and read from a filesystem should be capable of using them." He predicts "a Cambrian explosion in Skills which will make this year's MCP rush look pedestrian by comparison."
+
+### MCP + Skills Relationship
+
+On December 9, 2025, Anthropic donated the [Model Context Protocol (MCP)](https://modelcontextprotocol.io) to the Linux Foundation's Agentic AI Foundation. Skills and MCP are **complementary standards**:
+
+| Standard | Purpose | Provides |
+|----------|---------|----------|
+| **Agent Skills** | Procedural Knowledge | *How* to do things (workflows, instructions) |
+| **MCP** | Tools & Data Connectivity | *What* to connect to (APIs, data sources) |
+
+**For LLM Council**: We provide Skills for verification procedures and MCP servers for council tool access.
 
 ### Banteg's Multi-Agent Verification Pattern
 
@@ -69,6 +111,49 @@ Spec File + Chunk Number
 | **Independent evaluation** | Each agent evaluates without seeing others' responses |
 | **Transcript persistence** | All outputs saved for debugging and audit |
 | **Provider diversity** | Uses different providers (OpenAI, Google, Anthropic) for correlated error reduction |
+
+### Progressive Disclosure Architecture
+
+The agentskills.io specification introduces **three-level progressive disclosure** for context efficiency:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    PROGRESSIVE DISCLOSURE                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Level 1: Metadata Only (~100-200 tokens)                       │
+│  ┌──────────────────────────────────────────┐                   │
+│  │ name: council-verify                     │                   │
+│  │ description: Multi-model verification... │                   │
+│  │ metadata.category: verification          │                   │
+│  └──────────────────────────────────────────┘                   │
+│           │ Agent scans at startup                              │
+│           ▼ Determines relevance                                │
+│                                                                  │
+│  Level 2: Full SKILL.md (~2-5K tokens)                          │
+│  ┌──────────────────────────────────────────┐                   │
+│  │ + Complete instructions                  │                   │
+│  │ + Input/output schemas                   │                   │
+│  │ + Compatibility matrix                   │                   │
+│  │ + Examples                               │                   │
+│  └──────────────────────────────────────────┘                   │
+│           │ Loaded only when skill activated                    │
+│           ▼ Agent commits to execution                          │
+│                                                                  │
+│  Level 3: Resources (~10K+ tokens)                              │
+│  ┌──────────────────────────────────────────┐                   │
+│  │ + Verification rubrics                   │                   │
+│  │ + Model-specific prompts                 │                   │
+│  │ + Historical baselines                   │                   │
+│  │ + Audit templates                        │                   │
+│  └──────────────────────────────────────────┘                   │
+│           │ Loaded on-demand via explicit reference             │
+│           ▼ In isolated verification context                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Verification Benefit**: Context isolation is strengthened when verification context is loaded only at Level 3, after commitment to the verification task.
 
 ### LLM Council's Current Approach
 
@@ -152,18 +237,57 @@ Stage 3: Chairman Synthesis (final verdict)
 
 ---
 
-## Verification Properties
+## Verification Properties (Enhanced per Council v2.0)
 
-**Per Council Recommendation**: Define key properties for verification quality.
+**Per Council Recommendation**: Define key properties for verification quality. **New property added**: Cross-Agent Consistency.
 
 | Property | Description | LLM Council | Banteg |
 |----------|-------------|-------------|--------|
 | **Independence** | Verifiers don't share context/bias | Partial (same API) | Full (separate providers) |
-| **Context Isolation** | Fresh context, no conversation history | ❌ (runs in session) | ✅ (clean start) |
-| **Reproducibility** | Same input → same output | Partial (temp=0) | Partial (version-dependent) |
+| **Context Isolation** | Fresh context, no conversation history | ✅ (enforced via API) | ✅ (clean start) |
+| **Reproducibility** | Same input → same output | ✅ (snapshot pinning) | Partial (version-dependent) |
 | **Auditability** | Full decision trail | ✅ (transcripts) | ✅ (transcripts) |
 | **Cost/Latency** | Resource efficiency | Lower (shared API) | Higher (~3x calls) |
-| **Adversarial Robustness** | Resistance to prompt injection | Medium | Medium |
+| **Adversarial Robustness** | Resistance to prompt injection | Medium (hardened) | Medium |
+| **Cross-Agent Consistency** | Same results regardless of invoking agent | ✅ (NEW) | ❌ (not applicable) |
+
+### Cross-Agent Consistency (NEW - v2.0)
+
+Given multi-vendor adoption (GitHub Copilot, VS Code, Cursor, Claude Code), verification results must be consistent regardless of the invoking platform.
+
+```python
+@dataclass
+class VerificationResult:
+    """Standard output schema for cross-agent consistency."""
+
+    # Core verification properties
+    verification_id: str
+    original_response_hash: str
+    verifier_responses: List[VerifierResponse]
+    consensus_result: ConsensusResult
+    confidence_score: float
+
+    # Cross-agent consistency fields (NEW)
+    invoking_agent: AgentIdentifier      # e.g., "claude-code", "github-copilot"
+    skill_version: str                    # SKILL.md version
+    protocol_version: str = "1.0"        # Verification protocol version
+
+    # Audit trail
+    transcript_location: str
+    verification_timestamp: datetime
+    reproducibility_hash: str             # Hash of all inputs for reproducibility
+
+    def validate_cross_agent_consistency(
+        self,
+        reference: 'VerificationResult'
+    ) -> bool:
+        """Verify results are consistent across different invoking agents."""
+        return (
+            self.original_response_hash == reference.original_response_hash and
+            self.consensus_result.decision == reference.consensus_result.decision and
+            abs(self.confidence_score - reference.confidence_score) < 0.01
+        )
+```
 
 ### Context Isolation (Council Feedback)
 
@@ -239,13 +363,50 @@ class VerificationRequest:
 
 ---
 
-## Implementation Plan (Revised per Council)
+## Implementation Plan (Revised per Council v2.0)
 
-**Order Changed**: API First → Skills → Chunks
+**Strategy Changed**: Sequential → **Parallel Dual-Track**
 
-### Phase 1: Verification API (Priority)
+Per council consensus (4/4 models), the rapid industry adoption of Skills as a distribution channel necessitates parallel development rather than sequential phasing.
 
-**Rationale**: Cannot build effective skill wrappers without a stable central endpoint.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              PARALLEL IMPLEMENTATION TIMELINE                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Track A: API + MCP Foundation                                  │
+│  ├── Week 1-4: Verification API service                         │
+│  │   ├── POST /v1/council/verify endpoint                       │
+│  │   ├── Context isolation layer                                │
+│  │   └── Transcript persistence                                 │
+│  │                                                               │
+│  └── Week 3-6: MCP Servers                                      │
+│      ├── mcp://llm-council/verify                               │
+│      ├── mcp://llm-council/consensus                            │
+│      └── mcp://llm-council/audit                                │
+│                                                                  │
+│  Track B: Skills (PARALLEL)                                     │
+│  ├── Week 2-4: Skill Foundation                                 │
+│  │   ├── SKILL.md standard compliance                           │
+│  │   ├── Progressive disclosure loader                          │
+│  │   └── council-verify skill (basic)                           │
+│  │                                                               │
+│  └── Week 4-8: Integration                                      │
+│      ├── Skills ↔ MCP integration testing                       │
+│      ├── Platform compatibility (VS Code, Cursor, Copilot)      │
+│      └── Defense-in-depth validation                            │
+│                                                                  │
+│  Phase 2 (Q2 2026): Advanced                                    │
+│  ├── Domain-specific skills (code, legal, security)             │
+│  ├── Skill composition patterns                                 │
+│  └── Cross-organization verification                            │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Track A: Verification API + MCP Foundation
+
+**Rationale**: The API remains the trusted execution plane; MCP servers provide standardized tool access.
 
 ```python
 @app.post("/v1/council/verify")
@@ -258,38 +419,44 @@ async def verify_work(request: VerificationRequest) -> VerificationResult:
     - Snapshot-pinned verification (commit SHA)
     - Machine-actionable JSON output
     - Transcript persistence
+    - Cryptographic session binding
     """
     pass
 ```
 
-**Tasks:**
+**Tasks (Track A):**
 - [ ] Define `VerificationRequest` and `VerificationResult` schemas
 - [ ] Implement context isolation (separate from conversation)
 - [ ] Add snapshot verification (git SHA validation)
 - [ ] Implement transcript persistence (`.council/logs/`)
 - [ ] Add exit codes for CI/CD: 0=PASS, 1=FAIL, 2=UNCLEAR
+- [ ] Create MCP server: `mcp://llm-council/verify`
+- [ ] Create MCP server: `mcp://llm-council/audit`
 
-### Phase 2: Skill Wrappers
+### Track B: Skills (Parallel Development)
 
-Skills become thin clients over the API.
+**Rationale**: Skills are now the primary distribution channel. Releasing only an API risks poor adoption vs. competitors with native IDE skills.
 
 ```
 .claude/skills/
 ├── council-verify/
-│   └── SKILL.md
+│   ├── SKILL.md              # Progressive disclosure Level 1+2
+│   └── references/
+│       └── rubrics.md        # Level 3 resources
 ├── council-review/
 │   └── SKILL.md
 └── council-gate/
     └── SKILL.md
 ```
 
-**Tasks:**
-- [ ] Create SKILL.md files with proper descriptions
-- [ ] Test discovery in Claude Code and Codex CLI
+**Tasks (Track B):**
+- [ ] Create SKILL.md files compliant with agentskills.io spec
+- [ ] Implement progressive disclosure loader
+- [ ] Test discovery in Claude Code, Codex CLI, VS Code Copilot, Cursor
+- [ ] Add compatibility declarations for major platforms
 - [ ] Document installation in README
-- [ ] Add rubric_focus parameter support
 
-### Phase 3: Chunk-Level Verification (Future)
+### Phase 2: Chunk-Level Verification (Q2 2026)
 
 **Deferred**: High complexity due to chunk boundary definition and context composition.
 
@@ -306,44 +473,74 @@ Skills become thin clients over the API.
 
 ```yaml
 ---
+# Required fields (per agentskills.io spec)
 name: council-verify
 description: |
   Verify code, documents, or implementation against requirements using LLM Council deliberation.
   Use when you need multi-model consensus on correctness, completeness, or quality.
   Keywords: verify, check, validate, review, approve, pass/fail
-allowed-tools: Read, Grep, Glob
+
+# Optional fields (per agentskills.io spec)
+license: Apache-2.0
+compatibility: "llm-council >= 2.0, mcp >= 1.0"
+metadata:
+  category: verification
+  domain: ai-governance
+  council-version: "2.0"
+
+# EXPERIMENTAL - advisory only, not enforced (see Security section)
+allowed-tools: "Read Grep Glob mcp:llm-council/verify mcp:llm-council/audit"
 ---
 
 # Council Verification Skill
 
 Use LLM Council's multi-model deliberation to verify work.
 
-## Usage
+## Workflow
 
-1. Capture current git diff or file state
-2. Call verification API with isolated context
-3. Return structured verdict with blocking issues
+1. Capture current git diff or file state (snapshot pinning)
+2. Call `mcp:llm-council/verify` with isolated context
+3. Receive structured verdict with blocking issues
+4. Persist transcript via `mcp:llm-council/audit`
 
 ## Parameters
 
 - `rubric_focus`: Optional focus area ("Security", "Performance", "Accessibility")
 - `confidence_threshold`: Minimum confidence for PASS (default: 0.7)
+- `snapshot_id`: Git commit SHA for reproducibility
 
 ## Output
 
 Returns machine-actionable JSON with verdict, confidence, and blocking issues.
+
+## Progressive Disclosure
+
+- Level 1: This metadata (~150 tokens)
+- Level 2: Full instructions above (~500 tokens)
+- Level 3: See `references/rubrics.md` for full rubric definitions
 ```
 
 ### 2. `council-review` (Code Review)
 
 ```yaml
 ---
+# Required fields (per agentskills.io spec)
 name: council-review
 description: |
   Multi-model code review with structured feedback.
   Use for PR reviews, code quality checks, or implementation review.
   Keywords: code review, PR, pull request, quality check
-allowed-tools: Read, Grep, Glob
+
+# Optional fields
+license: Apache-2.0
+compatibility: "llm-council >= 2.0, mcp >= 1.0"
+metadata:
+  category: code-review
+  domain: software-engineering
+  council-version: "2.0"
+
+# EXPERIMENTAL - advisory only
+allowed-tools: "Read Grep Glob mcp:llm-council/verify mcp:llm-council/audit"
 ---
 
 # Council Code Review Skill
@@ -355,6 +552,7 @@ Get multiple AI perspectives on code changes.
 Supports both:
 - `file_paths`: List of files to review
 - `git_diff`: Unified diff format for change review
+- `snapshot_id`: Git commit SHA (required for reproducibility)
 
 ## Rubric (ADR-016)
 
@@ -365,18 +563,33 @@ Supports both:
 | Clarity | 20% | Readable, maintainable |
 | Conciseness | 15% | No unnecessary code |
 | Relevance | 10% | Addresses requirements |
+
+## Progressive Disclosure
+
+- Level 3 resources: `references/code-review-rubric.md`
 ```
 
 ### 3. `council-gate` (CI/CD Gate)
 
 ```yaml
 ---
+# Required fields (per agentskills.io spec)
 name: council-gate
 description: |
   Quality gate using LLM Council consensus.
   Use for CI/CD pipelines, automated approval workflows.
   Keywords: gate, CI, CD, pipeline, automated approval
-allowed-tools: Read, Grep, Glob
+
+# Optional fields
+license: Apache-2.0
+compatibility: "llm-council >= 2.0, mcp >= 1.0, github-actions >= 2.0"
+metadata:
+  category: ci-cd
+  domain: devops
+  council-version: "2.0"
+
+# EXPERIMENTAL - advisory only
+allowed-tools: "Read Grep mcp:llm-council/verify mcp:llm-council/audit"
 ---
 
 # Council Gate Skill
@@ -392,23 +605,85 @@ Automated quality gate using multi-model consensus.
 ## Transcript Location
 
 All deliberations saved to `.council/logs/{timestamp}-{hash}/`
+
+## CI/CD Integration
+
+```yaml
+# Example GitHub Actions usage
+- name: Council Gate
+  uses: llm-council/council-gate@v2
+  with:
+    confidence_threshold: 0.8
+    rubric_focus: security
+```
+
+## Progressive Disclosure
+
+- Level 3 resources: `references/ci-cd-rubric.md`
 ```
 
 ---
 
-## Security Considerations (Enhanced per Council)
+## Security Considerations (Enhanced per Council v2.0)
 
-### Defense in Depth
+### Critical: `allowed-tools` is EXPERIMENTAL
 
-`allowed-tools` is necessary but not sufficient. Verification requires multiple layers:
+The agentskills.io specification marks `allowed-tools` as **EXPERIMENTAL** with varying platform support. Per LLM Council consensus (4/4 models):
 
-| Layer | Control | Implementation |
-|-------|---------|----------------|
-| **Tool Permissions** | `allowed-tools` declaration | SKILL.md metadata |
-| **Filesystem Sandbox** | Read-only mounts | Container/OS-level |
-| **Network Isolation** | Deny egress by default | Firewall rules |
-| **Resource Limits** | CPU/memory/time bounds | cgroups/ulimits |
-| **Snapshot Integrity** | Verify commit SHA before review | Git validation |
+> **`allowed-tools` is a HINT, not a security gate.** Agent runtimes (VS Code, Cursor, etc.) may ignore it, allow tool hallucination, or bypass restrictions. Security MUST be enforced at layers we control.
+
+### Defense in Depth Architecture
+
+Security requires multiple enforcement layers, with `allowed-tools` as advisory only:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SECURITY LAYER ARCHITECTURE                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Layer 4: allowed-tools (EXPERIMENTAL - advisory only)          │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ Declares intent, NOT enforced - agents may ignore       │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                      │
+│                           ▼                                      │
+│  Layer 3: API Gateway (ENFORCED)                                │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ • Request authentication & rate limiting                │    │
+│  │ • Scope validation                                      │    │
+│  │ • Cryptographic session binding                         │    │
+│  │ • Audit logging                                         │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                      │
+│                           ▼                                      │
+│  Layer 2: Verification Service (ENFORCED)                       │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ • Context isolation (fresh per verification)            │    │
+│  │ • Model-specific sandboxing                             │    │
+│  │ • Response validation                                   │    │
+│  │ • Snapshot pinning (commit SHA)                         │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                      │
+│                           ▼                                      │
+│  Layer 1: Audit Trail (ENFORCED)                                │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ • Immutable transcript storage                          │    │
+│  │ • Tamper detection                                      │    │
+│  │ • Reproducibility verification                          │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Layer | Control | Implementation | Enforcement |
+|-------|---------|----------------|-------------|
+| **Layer 4** | `allowed-tools` declaration | SKILL.md metadata | **Advisory only** |
+| **Layer 3** | API Gateway | Authentication, rate limiting | **Hard enforcement** |
+| **Layer 2** | Verification Service | Context isolation, sandboxing | **Hard enforcement** |
+| **Layer 1** | Audit Trail | Immutable logging | **Hard enforcement** |
+| **OS-level** | Filesystem Sandbox | Read-only mounts, containers | **Hard enforcement** |
+| **OS-level** | Network Isolation | Deny egress by default | **Hard enforcement** |
+| **OS-level** | Resource Limits | CPU/memory/time bounds | **Hard enforcement** |
 
 ### Prompt Injection Hardening
 
@@ -532,19 +807,64 @@ All verification deliberations saved for audit:
 
 ## References
 
-- [Banteg's check-work-chunk skill](https://gist.github.com/banteg/9ead1ffa1e44de8bb15180d8e1a59041)
-- [OpenAI Codex Skills Documentation](https://developers.openai.com/codex/skills/)
+### Open Standard & Specification
+- [Agent Skills Open Standard](https://agentskills.io) - Official specification site
+- [agentskills.io/specification](https://agentskills.io/specification) - Full specification
+- [Anthropic Skills Repository](https://github.com/anthropics/skills) - Reference implementations
+- [Anthropic Engineering: Equipping Agents with Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
+
+### Platform Documentation
 - [Claude Code Skills Documentation](https://code.claude.com/docs/en/skills)
-- [Anthropic Skills Repository](https://github.com/anthropics/skills)
-- [Simon Willison: OpenAI Skills](https://simonwillison.net/2025/Dec/12/openai-skills/)
+- [OpenAI Codex Skills Documentation](https://developers.openai.com/codex/skills/)
+- [GitHub Copilot Agent Skills (VS Code)](https://code.visualstudio.com/docs/copilot/customization/agent-skills)
+
+### Analysis & Commentary
+- [Simon Willison: Agent Skills](https://simonwillison.net/2025/Dec/19/agent-skills/) - Dec 19, 2025
+- [Simon Willison: Claude Skills are awesome](https://simonwillison.net/2025/Oct/16/claude-skills/)
+- [Banteg's check-work-chunk skill](https://gist.github.com/banteg/9ead1ffa1e44de8bb15180d8e1a59041)
+
+### Related ADRs
 - [ADR-025: Future Integration Capabilities](./ADR-025-future-integration-capabilities.md)
 - [ADR-025b: Jury Mode](./ADR-025-future-integration-capabilities.md) (Binary Verdicts)
 - [ADR-016: Structured Rubric Scoring](./ADR-016-structured-rubric-scoring.md)
 - [ADR-017: Response Order Randomization](./ADR-017-response-order-randomization.md) (XML Sandboxing)
 
+### Industry News
+- [VentureBeat: Anthropic launches enterprise Agent Skills](https://venturebeat.com/technology/anthropic-launches-enterprise-agent-skills-and-opens-the-standard)
+- [The New Stack: Agent Skills - Anthropic's Next Bid to Define AI Standards](https://thenewstack.io/agent-skills-anthropics-next-bid-to-define-ai-standards/)
+
 ---
 
 ## Council Review Summary
+
+### v2.0 Review (2025-12-31)
+
+**Reviewed by**: GPT-5.2, Gemini-3-Pro-preview, Grok-4.1-fast, Claude-Opus-4.5 (4/4 models)
+**Tier**: Reasoning (High Confidence)
+
+**Key Consensus Points**:
+
+1. ✅ **`allowed-tools` is EXPERIMENTAL** - Treat as advisory hint only, not security enforcement
+2. ✅ **MCP + Skills are Complementary** - Skills = procedural knowledge, MCP = tool/data connectivity
+3. ✅ **Progressive Disclosure is Mandatory** - Three-level loading for context efficiency
+4. ✅ **Parallel Implementation Tracks** - API + Skills developed simultaneously, not sequentially
+5. ✅ **Defense-in-Depth Maintained** - Enforcement at API/MCP layer, not skill declarations
+6. ✅ **Cross-Agent Consistency** - New verification property for multi-platform world
+
+**Novel Insights from Council**:
+
+| Source | Insight | Incorporated |
+|--------|---------|--------------|
+| Google | Cryptographic session binding for verification | ✅ Added to Layer 3 |
+| OpenAI | Evidence pinning via hashes/digests | ✅ Added to reproducibility |
+| Anthropic | Cross-agent consistency as new property | ✅ Added to properties |
+| x-ai | Parallel phase adjustment for rapid adoption | ✅ Updated timeline |
+
+**Strategic Recommendation**:
+
+> The LLM Council delivery artifact should be an **MCP Server** that serves Skill definitions dynamically. This positions llm-council as both a Skills provider (procedural knowledge) and MCP server (tool access), aligning with the industry direction established by the Agentic AI Foundation.
+
+### v1.0 Review (2025-12-28)
 
 **Reviewed by**: GPT-5.2-pro, Gemini-3-Pro-preview, Grok-4.1-fast (Claude-Opus-4.5 unavailable)
 
@@ -561,4 +881,22 @@ All verification deliberations saved for audit:
 
 ---
 
-*This ADR was revised based on LLM Council feedback on 2025-12-28.*
+## Changelog
+
+### v2.0 (2025-12-31)
+- **Context**: Updated to reflect Agent Skills as open standard (Dec 18, 2025)
+- **Industry Adoption**: Added adoption table with major platforms
+- **MCP Relationship**: Added section clarifying Skills + MCP complementarity
+- **Progressive Disclosure**: Added three-level loading architecture
+- **Security**: Marked `allowed-tools` as EXPERIMENTAL, updated defense-in-depth
+- **Implementation**: Changed from sequential to parallel dual-track
+- **Properties**: Added Cross-Agent Consistency as new verification property
+- **References**: Updated with agentskills.io, new Willison posts, industry coverage
+- **Council Review**: Full reasoning tier review with 4/4 models
+
+### v1.0 (2025-12-28)
+- Initial draft based on LLM Council high-tier review
+
+---
+
+*This ADR was revised based on LLM Council reasoning tier feedback on 2025-12-31.*
