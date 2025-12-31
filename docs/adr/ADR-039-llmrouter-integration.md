@@ -287,8 +287,6 @@ This dissent informs Phase 2 validation requirements.
 ## References
 
 - [LLMRouter GitHub](https://github.com/NVIDIA/LLMRouter)
-- [LLMRouter ADRs](../../../LLMRouter/docs/adrs/) (reverse-engineered)
-- [SYNTHESIS-llmrouter-llm-council.md](../../../LLMRouter/docs/adrs/SYNTHESIS-llmrouter-llm-council.md)
 - [ADR-022: Tiered Model Selection](ADR-022-tiered-model-selection.md)
 - [ADR-024: Unified Routing Architecture](ADR-024-unified-routing-architecture.md)
 - [ADR-026: Dynamic Model Intelligence](ADR-026-dynamic-model-intelligence.md)
