@@ -11,8 +11,8 @@ copyright: Copyright &copy; 2024-2025 Amiable Dev
 
 theme:
   name: material
-  logo: assets/logo.svg
-  favicon: assets/logo.png
+  logo: img/logo.svg
+  favicon: img/logo.png
   font:
     text: Montserrat
     code: JetBrains Mono
