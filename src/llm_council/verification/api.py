@@ -16,7 +16,8 @@ import asyncio
 import re
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -124,6 +125,19 @@ class VerifyResponse(BaseModel):
         default=False,
         description="True if result is partial (timeout/error)",
     )
+    # ADR-034 v2.6: Directory expansion metadata (Issue #311)
+    expanded_paths: Optional[List[str]] = Field(
+        default=None,
+        description="Files included after directory expansion",
+    )
+    paths_truncated: Optional[bool] = Field(
+        default=None,
+        description="True if MAX_FILES_EXPANSION limit was reached",
+    )
+    expansion_warnings: Optional[List[str]] = Field(
+        default=None,
+        description="Warnings from directory expansion (skipped files, etc.)",
+    )
 
 
 def _verdict_to_exit_code(verdict: str) -> int:
@@ -140,6 +154,194 @@ def _verdict_to_exit_code(verdict: str) -> int:
 MAX_FILE_CHARS = 15000
 # Maximum total characters for all files
 MAX_TOTAL_CHARS = 50000
+
+# =============================================================================
+# ADR-034 v2.6: Directory Expansion Constants
+# =============================================================================
+
+# Maximum files to include after directory expansion (Issue #309)
+MAX_FILES_EXPANSION = 100
+
+# Text file extensions to include (whitelist approach per council decision)
+# 80+ extensions covering common source code, config, and documentation files
+TEXT_EXTENSIONS: Set[str] = frozenset(
+    {
+        # Source code
+        ".py",
+        ".pyi",
+        ".pyx",
+        ".pxd",  # Python
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",  # JavaScript
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts",  # TypeScript
+        ".java",
+        ".kt",
+        ".kts",
+        ".scala",
+        ".groovy",  # JVM
+        ".c",
+        ".h",
+        ".cpp",
+        ".hpp",
+        ".cc",
+        ".hh",
+        ".cxx",
+        ".hxx",  # C/C++
+        ".cs",
+        ".fs",
+        ".fsx",  # .NET
+        ".go",  # Go
+        ".rs",  # Rust
+        ".rb",
+        ".rake",
+        ".gemspec",  # Ruby
+        ".php",
+        ".phtml",  # PHP
+        ".swift",  # Swift
+        ".m",
+        ".mm",  # Objective-C
+        ".lua",  # Lua
+        ".pl",
+        ".pm",
+        ".t",  # Perl
+        ".r",
+        ".R",  # R
+        ".jl",  # Julia
+        ".ex",
+        ".exs",  # Elixir
+        ".erl",
+        ".hrl",  # Erlang
+        ".clj",
+        ".cljs",
+        ".cljc",
+        ".edn",  # Clojure
+        ".hs",
+        ".lhs",  # Haskell
+        ".elm",  # Elm
+        ".ml",
+        ".mli",  # OCaml
+        ".nim",  # Nim
+        ".v",
+        ".sv",
+        ".svh",  # Verilog/SystemVerilog
+        ".vhd",
+        ".vhdl",  # VHDL
+        ".asm",
+        ".s",  # Assembly
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".fish",  # Shell
+        ".ps1",
+        ".psm1",
+        ".psd1",  # PowerShell
+        ".bat",
+        ".cmd",  # Windows batch
+        # Web
+        ".html",
+        ".htm",
+        ".xhtml",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
+        ".styl",
+        ".vue",
+        ".svelte",
+        # Data/Config
+        ".json",
+        ".jsonl",
+        ".json5",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".xml",
+        ".xsd",
+        ".xsl",
+        ".xslt",
+        ".svg",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".env",
+        ".env.example",
+        ".env.sample",
+        ".properties",
+        ".plist",
+        # Documentation
+        ".md",
+        ".markdown",
+        ".mdx",
+        ".rst",
+        ".txt",
+        ".text",
+        ".adoc",
+        ".asciidoc",
+        ".tex",
+        ".latex",
+        ".org",
+        # Build/CI
+        ".makefile",
+        ".mk",
+        ".cmake",
+        ".gradle",
+        ".dockerfile",
+        # GraphQL/API
+        ".graphql",
+        ".gql",
+        ".proto",
+        ".thrift",
+        ".avsc",  # Avro schema
+        # SQL
+        ".sql",
+        # Misc
+        ".vim",
+        ".vimrc",
+        ".gitignore",
+        ".gitattributes",
+        ".gitmodules",
+        ".editorconfig",
+        ".eslintrc",
+        ".prettierrc",
+        ".stylelintrc",
+        ".babelrc",
+        ".npmrc",
+        ".yarnrc",
+        ".dockerignore",
+    }
+)
+
+# Garbage filenames to exclude (lock files, generated files)
+GARBAGE_FILENAMES: Set[str] = frozenset(
+    {
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "poetry.lock",
+        "Pipfile.lock",
+        "composer.lock",
+        "Gemfile.lock",
+        "Cargo.lock",
+        "go.sum",
+        "flake.lock",
+        "bun.lockb",
+        ".DS_Store",
+        "Thumbs.db",
+        "desktop.ini",
+        "__pycache__",
+        "node_modules",
+        ".git",
+    }
+)
+
+# =============================================================================
+# End ADR-034 v2.6 Constants
+# =============================================================================
 
 
 # Async timeout for subprocess operations (seconds)
@@ -238,6 +440,241 @@ async def _get_git_semaphore() -> asyncio.Semaphore:
         if _git_semaphore is None:
             _git_semaphore = asyncio.Semaphore(MAX_CONCURRENT_GIT_OPS)
         return _git_semaphore
+
+
+# =============================================================================
+# ADR-034 v2.6: Directory Expansion Helpers (Issues #307, #308, #309)
+# =============================================================================
+
+
+async def _get_git_object_type(snapshot_id: str, path: str) -> Optional[str]:
+    """
+    Get git object type for a path at a specific commit.
+
+    Uses `git cat-file -t` to determine if path is a blob (file),
+    tree (directory), or doesn't exist.
+
+    Issue #307: Foundation helper for directory expansion.
+
+    Args:
+        snapshot_id: Git commit SHA
+        path: Path relative to repo root
+
+    Returns:
+        "blob" for files, "tree" for directories, None for errors/not found.
+    """
+    git_root = await _get_git_root_async()
+    semaphore = await _get_git_semaphore()
+
+    async with semaphore:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git",
+                "cat-file",
+                "-t",
+                f"{snapshot_id}:{path}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=git_root,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=ASYNC_SUBPROCESS_TIMEOUT)
+            if proc.returncode == 0:
+                return stdout.decode("utf-8").strip()
+        except Exception:
+            pass
+
+    return None
+
+
+async def _git_ls_tree_z_name_only(snapshot_id: str, tree_path: str) -> List[str]:
+    """
+    List all files in a git tree recursively using NUL-delimited output.
+
+    Uses `git ls-tree -rz --name-only` for safe parsing of filenames
+    containing spaces, newlines, or other special characters.
+
+    Skips symlinks (mode 120000) and submodules (mode 160000).
+
+    Issue #308: Foundation helper for directory expansion.
+
+    Args:
+        snapshot_id: Git commit SHA
+        tree_path: Path to directory relative to repo root
+
+    Returns:
+        List of file paths (with tree_path prepended).
+    """
+    git_root = await _get_git_root_async()
+    semaphore = await _get_git_semaphore()
+
+    async with semaphore:
+        try:
+            # Use ls-tree with -z for NUL delimiters and --name-status to get modes
+            # We need modes to skip symlinks and submodules
+            proc = await asyncio.create_subprocess_exec(
+                "git",
+                "ls-tree",
+                "-rz",  # Recursive, NUL-delimited
+                f"{snapshot_id}:{tree_path}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=git_root,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=ASYNC_SUBPROCESS_TIMEOUT)
+
+            if proc.returncode != 0:
+                return []
+
+            # Parse NUL-delimited output
+            # Format: "mode type hash\tpath\0mode type hash\tpath\0..."
+            output = stdout.decode("utf-8", errors="replace")
+            files: List[str] = []
+
+            for entry in output.split("\0"):
+                if not entry.strip():
+                    continue
+
+                # Split mode/type/hash from path
+                parts = entry.split("\t", 1)
+                if len(parts) != 2:
+                    continue
+
+                metadata, file_path = parts
+                mode_parts = metadata.split(" ")
+                if len(mode_parts) < 2:
+                    continue
+
+                mode = mode_parts[0]
+                obj_type = mode_parts[1]
+
+                # Skip symlinks (120000) and submodules (160000)
+                if mode in ("120000", "160000"):
+                    continue
+
+                # Only include blobs (files)
+                if obj_type != "blob":
+                    continue
+
+                # Prepend tree path to get full path
+                full_path = f"{tree_path}/{file_path}" if tree_path else file_path
+                files.append(full_path)
+
+            return files
+
+        except Exception:
+            return []
+
+
+def _is_text_file(file_path: str) -> bool:
+    """Check if file has a text extension."""
+    path = Path(file_path)
+    suffix = path.suffix.lower()
+    name = path.name.lower()
+
+    # Check if full name matches (e.g., .gitignore, Makefile)
+    if name in TEXT_EXTENSIONS or f".{name}" in TEXT_EXTENSIONS:
+        return True
+
+    # Check if extension matches
+    if suffix and suffix in TEXT_EXTENSIONS:
+        return True
+
+    # Special case: files without extension that are likely text
+    if not suffix and name in {"makefile", "dockerfile", "jenkinsfile", "cmakelists"}:
+        return True
+
+    return False
+
+
+def _is_garbage_file(file_path: str) -> bool:
+    """Check if file is a garbage file that should be excluded."""
+    name = Path(file_path).name
+    return name in GARBAGE_FILENAMES
+
+
+async def _expand_target_paths(
+    snapshot_id: str,
+    target_paths: List[str],
+) -> Tuple[List[str], bool, List[str]]:
+    """
+    Expand directories in target_paths to their constituent text files.
+
+    Issue #309: Core expansion logic with text filtering.
+
+    Args:
+        snapshot_id: Git commit SHA
+        target_paths: List of paths (may include directories)
+
+    Returns:
+        Tuple of:
+        - expanded_files: List of file paths after expansion
+        - was_truncated: True if MAX_FILES_EXPANSION was hit
+        - warnings: List of warning messages
+    """
+    expanded_files: List[str] = []
+    warnings: List[str] = []
+    truncated = False
+
+    for path in target_paths:
+        # Normalize path (remove trailing slashes)
+        path = path.rstrip("/")
+
+        # Check object type
+        obj_type = await _get_git_object_type(snapshot_id, path)
+
+        if obj_type is None:
+            warnings.append(f"Path not found or invalid: {path}")
+            continue
+
+        if obj_type == "blob":
+            # It's a file - check if it passes filters
+            if _is_garbage_file(path):
+                warnings.append(f"Skipped garbage file: {path}")
+                continue
+            if not _is_text_file(path):
+                warnings.append(f"Skipped non-text file: {path}")
+                continue
+            expanded_files.append(path)
+
+        elif obj_type == "tree":
+            # It's a directory - expand it
+            tree_files = await _git_ls_tree_z_name_only(snapshot_id, path)
+
+            for file_path in tree_files:
+                # Apply filters
+                if _is_garbage_file(file_path):
+                    continue
+                if not _is_text_file(file_path):
+                    continue
+
+                expanded_files.append(file_path)
+
+                # Check if we've hit the limit
+                if len(expanded_files) >= MAX_FILES_EXPANSION:
+                    truncated = True
+                    warnings.append(
+                        f"Truncated at {MAX_FILES_EXPANSION} files. "
+                        f"Directory '{path}' contains more files than limit."
+                    )
+                    break
+
+            if truncated:
+                break
+
+        else:
+            warnings.append(f"Unknown object type '{obj_type}' for path: {path}")
+
+        # Check limit after each path
+        if len(expanded_files) >= MAX_FILES_EXPANSION:
+            truncated = True
+            break
+
+    return expanded_files, truncated, warnings
+
+
+# =============================================================================
+# End ADR-034 v2.6 Directory Expansion Helpers
+# =============================================================================
 
 
 async def _fetch_file_at_commit_async(snapshot_id: str, file_path: str) -> Tuple[str, bool]:
@@ -350,18 +787,53 @@ async def _fetch_files_for_verification_async(
     Uses async subprocess to avoid blocking the event loop.
     Fetches multiple files concurrently for better performance.
 
+    ADR-034 v2.6: Now supports directory expansion via _expand_target_paths().
+
     Args:
         snapshot_id: Git commit SHA
-        target_paths: Optional list of specific paths
+        target_paths: Optional list of specific paths (files or directories)
 
     Returns:
         Formatted string with file contents
     """
-    files_to_fetch = list(target_paths) if target_paths else []
+    content, _ = await _fetch_files_for_verification_async_with_metadata(snapshot_id, target_paths)
+    return content
+
+
+async def _fetch_files_for_verification_async_with_metadata(
+    snapshot_id: str,
+    target_paths: Optional[List[str]] = None,
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Fetch file contents for verification prompt with expansion metadata.
+
+    ADR-034 v2.6: This is the core implementation that handles directory
+    expansion and returns metadata about what was expanded.
+
+    Args:
+        snapshot_id: Git commit SHA
+        target_paths: Optional list of specific paths (files or directories)
+
+    Returns:
+        Tuple of (formatted content string, metadata dict)
+        Metadata includes: expanded_paths, paths_truncated, expansion_warnings
+    """
+    files_to_fetch: List[str] = []
+    expansion_metadata: Dict[str, Any] = {
+        "expanded_paths": [],
+        "paths_truncated": False,
+        "expansion_warnings": [],
+    }
     git_root = await _get_git_root_async()
 
-    # If no target paths, get files changed in this commit
-    if not files_to_fetch:
+    # ADR-034 v2.6: Expand directories in target_paths
+    if target_paths:
+        files_to_fetch, truncated, warnings = await _expand_target_paths(snapshot_id, target_paths)
+        expansion_metadata["expanded_paths"] = files_to_fetch
+        expansion_metadata["paths_truncated"] = truncated
+        expansion_metadata["expansion_warnings"] = warnings
+    else:
+        # If no target paths, get files changed in this commit
         try:
             semaphore = await _get_git_semaphore()
             async with semaphore:
@@ -383,11 +855,12 @@ async def _fetch_files_for_verification_async(
 
                 if proc.returncode == 0:
                     files_to_fetch = [f for f in stdout.decode("utf-8").strip().split("\n") if f]
+                    expansion_metadata["expanded_paths"] = files_to_fetch
         except Exception:
             pass
 
     if not files_to_fetch:
-        return "[No files specified and could not determine changed files]"
+        return "[No files specified and could not determine changed files]", expansion_metadata
 
     # Fetch files with early termination when limit is reached
     # This avoids wasting resources on files we won't include
@@ -424,7 +897,7 @@ async def _fetch_files_for_verification_async(
             section = f"### {file_path}\n```\n{content}\n```"
             sections.append(section)
 
-    return "\n\n".join(sections)
+    return "\n\n".join(sections), expansion_metadata
 
 
 async def _build_verification_prompt(

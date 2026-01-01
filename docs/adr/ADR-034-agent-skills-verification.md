@@ -1234,17 +1234,26 @@ Include expanded paths in response for transparency:
 
 ### Implementation Tasks
 
-- [ ] #307: Add `_get_git_object_type()` helper (blob/tree detection)
-- [ ] #308: Add `_git_ls_tree_z_name_only()` helper (safe filename parsing)
-- [ ] #309: Add `_expand_target_paths()` with text filtering
-- [ ] #310: Update `_fetch_files_for_verification_async()` to use expansion
-- [ ] #311: Add `expanded_paths` to API response schema
-- [ ] #312: Unit tests for directory expansion edge cases
-- [ ] #313: Integration test with docs/ directory verification
+- [x] #307: Add `_get_git_object_type()` helper (blob/tree detection)
+- [x] #308: Add `_git_ls_tree_z_name_only()` helper (safe filename parsing)
+- [x] #309: Add `_expand_target_paths()` with text filtering
+- [x] #310: Update `_fetch_files_for_verification_async()` to use expansion
+- [x] #311: Add `expanded_paths` to API response schema
+- [x] #312: Unit tests for directory expansion edge cases (30+ tests)
+- [x] #313: Integration test with docs/ directory verification
 
 ---
 
 ## Changelog
+
+### v2.7 (2026-01-01)
+- **Implementation**: Directory Expansion v2.6 design fully implemented
+- **New Functions**: `_get_git_object_type()`, `_git_ls_tree_z_name_only()`, `_expand_target_paths()`
+- **Constants**: Added `TEXT_EXTENSIONS` (80+ extensions), `GARBAGE_FILENAMES`, `MAX_FILES_EXPANSION=100`
+- **Schema**: Added `expanded_paths`, `paths_truncated`, `expansion_warnings` to `VerifyResponse`
+- **Tests**: 34 unit/integration tests for directory expansion (all passing)
+- **TDD**: Full red-green-refactor cycle with parallel implementation of issues #307-#313
+- **Status**: Issues #307-#313 completed, epic #306 closed
 
 ### v2.6 (2026-01-01)
 - **Enhancement**: Directory Expansion for verification context (council-approved)

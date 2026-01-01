@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-01-01
+
+### Added
+
+- **Directory Expansion for Verification (ADR-034 v2.7)**: Expand directory paths to constituent files
+  - `_get_git_object_type()`: Detect blob (file) vs tree (directory) via `git cat-file -t`
+  - `_git_ls_tree_z_name_only()`: NUL-delimited parsing for safe filename handling
+  - `_expand_target_paths()`: Core expansion with text filtering and truncation
+  - `TEXT_EXTENSIONS`: 80+ text file extensions (source code, config, documentation)
+  - `GARBAGE_FILENAMES`: Lock files excluded (package-lock.json, yarn.lock, etc.)
+  - `MAX_FILES_EXPANSION`: Hard cap of 100 files per expansion
+
+- **Verification Response Schema Enhancement**
+  - `expanded_paths`: List of files included after expansion
+  - `paths_truncated`: Boolean indicating if MAX_FILES_EXPANSION was hit
+  - `expansion_warnings`: Warnings about skipped files or truncation
+
+- **Directory Expansion Tests**: 34 unit and integration tests
+  - Real git operations against actual repo
+  - Mock tests for edge cases (spaces, newlines, symlinks, submodules)
+  - Integration tests with docs/ and src/ directories
+
+### Fixed
+
+- **Verification with Directory Paths**: Now returns file contents instead of git tree listings
+  - Previously: `target_paths=["docs/"]` returned tree listing (040000 tree, 100644 blob, etc.)
+  - Now: Expands to actual markdown/text files for meaningful council review
+
+### Security
+
+- **Symlink Skipping**: Silently skip symlinks (mode 120000) to prevent path escape
+- **Submodule Skipping**: Skip submodules (mode 160000) that lack snapshot context
+
 ## [0.22.0] - 2026-01-01
 
 ### Added
