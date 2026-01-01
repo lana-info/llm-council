@@ -1,6 +1,6 @@
 # Multi-Model Deliberation: How LLM Council Verifies Code
 
-*Published: January 2026*
+*Published: January 2025*
 
 ---
 
@@ -174,7 +174,7 @@ def extract_verdict_from_synthesis(stage3_result, stage2_results, threshold=0.7)
 Every verification writes a complete transcript:
 
 ```
-.council/logs/2026-01-01T12-00-00-abc123/
+.council/logs/2025-01-15T10-30-00-abc123/
 ├── request.json    # What was asked
 ├── stage1.json     # All individual reviews
 ├── stage2.json     # All peer rankings + rubric scores
