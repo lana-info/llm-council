@@ -1095,13 +1095,13 @@ Each improvement requires corresponding tests:
 
 ### GitHub Issues
 
-The following issues track this work:
+The following issues tracked this work (all closed in commit 12ec6b5):
 
-- [ ] #292: SkillLoader path traversal protection
-- [ ] #293: SkillLoader domain-specific exceptions
-- [ ] #294: SkillLoader thread safety
-- [ ] #295: SkillLoader cache invalidation
-- [ ] #296: SkillLoader logging and observability
+- [x] #292: SkillLoader path traversal protection
+- [x] #293: SkillLoader domain-specific exceptions
+- [x] #294: SkillLoader thread safety
+- [x] #295: SkillLoader cache invalidation
+- [x] #296: SkillLoader logging and observability
 
 ---
 
