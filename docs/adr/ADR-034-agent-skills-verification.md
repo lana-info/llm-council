@@ -1117,7 +1117,140 @@ The following issues tracked this work (all closed in commit 12ec6b5):
 
 ---
 
+## Directory Expansion Enhancement (Council-Approved v2.6)
+
+**Added per Council Review (2026-01-01)**: When `target_paths` contains directories (e.g., `["docs/"]`), the verification API should expand directories to their constituent files rather than returning git tree listings.
+
+### Problem Statement
+
+Verification with directory paths currently returns tree listings instead of file contents, causing council models to correctly identify insufficient context and return UNCLEAR verdicts.
+
+### Council Decision: APPROVED WITH REVISIONS
+
+**Reviewed by**: GPT-5.2, Claude-Opus-4.5, Grok-4.1-fast, Gemini-3-Pro-preview
+**Priority**: P0 (Blocker) - Implement before other ADR-034 enhancements
+
+### Approved Design
+
+#### 1. Glob Patterns
+**Decision: DEFER to Phase 2**
+- Simple directory expansion is sufficient for v1
+- Glob patterns add parsing complexity and security surface
+- Future: Use native Git pathspecs, not Python globbing
+
+#### 2. Binary Detection
+**Decision: Extension Whitelist + Content Fallback**
+
+```python
+TEXT_EXTENSIONS = {
+    '.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java', '.kt',
+    '.c', '.cpp', '.h', '.hpp', '.cs', '.rb', '.php', '.swift', '.scala',
+    '.json', '.yaml', '.yml', '.toml', '.xml', '.ini', '.cfg', '.env',
+    '.md', '.rst', '.txt', '.adoc',
+    '.html', '.css', '.scss', '.less', '.svg',
+    '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat',
+}
+
+# Also exclude "garbage" text files
+GARBAGE_FILENAMES = {'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'cargo.lock'}
+
+# Fallback: check for NUL bytes in first 512 bytes after fetch
+def _is_binary_content(content: bytes) -> bool:
+    return b'\x00' in content[:512]
+```
+
+#### 3. Large Directories
+**Decision: Hard Cap + Deterministic Sort + Warn**
+
+```python
+MAX_FILES_EXPANSION = 100
+
+async def _expand_target_paths(snapshot_id: str, target_paths: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Expand directories to text files.
+    Returns: (sorted_file_paths, warning_messages)
+    """
+    expanded_files = set()  # Deduplicate overlapping paths
+    warnings = []
+
+    for path in target_paths:
+        obj_type = await _get_git_object_type(snapshot_id, path)
+
+        if obj_type == "tree":
+            # Use -z for safe filename parsing (handles spaces/newlines)
+            files = await _git_ls_tree_z_name_only(snapshot_id, path)
+
+            for file_path in files:
+                # Filter by extension
+                if Path(file_path).suffix not in TEXT_EXTENSIONS:
+                    continue
+                # Filter garbage files
+                if Path(file_path).name in GARBAGE_FILENAMES:
+                    continue
+                expanded_files.add(file_path)
+
+        elif obj_type == "blob":
+            expanded_files.add(path)
+        # Skip symlinks (120000) and submodules (160000) implicitly
+
+    # Deterministic sorting (CRITICAL for reproducibility)
+    final_list = sorted(list(expanded_files))
+
+    # Cap and warn
+    if len(final_list) > MAX_FILES_EXPANSION:
+        warnings.append(
+            f"File count ({len(final_list)}) exceeds limit of {MAX_FILES_EXPANSION}. "
+            "List truncated alphabetically."
+        )
+        final_list = final_list[:MAX_FILES_EXPANSION]
+
+    return final_list, warnings
+```
+
+#### 4. Symlinks
+**Decision: SKIP**
+- Detect mode `120000` in ls-tree output
+- Skip silently or with debug log
+- Following symlinks risks cycles and repo escape
+
+#### 5. Submodules
+**Decision: SKIP**
+- Detect mode `160000` in ls-tree output
+- Skip as system lacks submodule snapshot context
+
+### API Response Enhancement
+
+Include expanded paths in response for transparency:
+
+```python
+{
+    "requested_paths": ["docs/"],
+    "expanded_paths": ["docs/api.md", "docs/intro.md", "docs/guide.md"],
+    "paths_truncated": false,
+    "verdict": "...",
+    # ... rest of response
+}
+```
+
+### Implementation Tasks
+
+- [ ] #307: Add `_get_git_object_type()` helper (blob/tree detection)
+- [ ] #308: Add `_git_ls_tree_z_name_only()` helper (safe filename parsing)
+- [ ] #309: Add `_expand_target_paths()` with text filtering
+- [ ] #310: Update `_fetch_files_for_verification_async()` to use expansion
+- [ ] #311: Add `expanded_paths` to API response schema
+- [ ] #312: Unit tests for directory expansion edge cases
+- [ ] #313: Integration test with docs/ directory verification
+
+---
+
 ## Changelog
+
+### v2.6 (2026-01-01)
+- **Enhancement**: Directory Expansion for verification context (council-approved)
+- **Council Review**: High-tier review with 4/4 models, verdict APPROVED WITH REVISIONS
+- **Priority**: P0 blocker for verification usability
+- **Design Decisions**: Defer globs, extension whitelist, hard cap (100), skip symlinks/submodules
 
 ### v2.5 (2026-01-01)
 - **Bug Fix #299**: Verification prompt now includes actual file contents from git
