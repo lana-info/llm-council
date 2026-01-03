@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.5] - 2026-01-03
+
+### Fixed
+
+- **Build fix**: Use `artifacts` instead of `force-include` for bundled skills packaging
+  - Previous configuration tried to include `.github/skills` which doesn't exist in sdist
+  - Skills are now correctly bundled from `src/llm_council/skills/bundled/`
+
 ## [0.24.4] - 2026-01-03
 
 ### Added
