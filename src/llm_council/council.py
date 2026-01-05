@@ -391,6 +391,7 @@ async def run_council_with_fallback(
     *,
     webhook_config: Optional[WebhookConfig] = None,
     on_event: Optional[Callable] = None,
+    request_id: Optional[str] = None,
     verdict_type: VerdictType = VerdictType.SYNTHESIS,
     include_dissent: bool = False,
 ) -> Dict[str, Any]:
@@ -421,6 +422,9 @@ async def run_council_with_fallback(
         webhook_config: Optional WebhookConfig for real-time event notifications (ADR-025a)
         on_event: Optional callback for local event capture (e.g., SSE streaming).
                   Called for each event as it happens, enabling real-time streaming.
+        request_id: Optional request ID for trace continuity. If not provided,
+                    EventBridge generates one. Pass this for SSE streaming to
+                    correlate events with the original request.
         verdict_type: Type of verdict to render (ADR-025b Jury Mode):
             - SYNTHESIS: Default behavior, unstructured natural language synthesis
             - BINARY: Go/no-go decision (approved/rejected)
@@ -453,6 +457,7 @@ async def run_council_with_fallback(
         webhook_config=webhook_config,
         mode=DispatchMode.SYNC,  # Use sync mode for deterministic event ordering
         on_event=on_event,
+        request_id=request_id,  # Pass caller's request_id for trace continuity
     )
 
     # ADR-024 (Observability): Record L1 -> L2 boundary

@@ -113,6 +113,7 @@ async def run_council(
                 models=model_list,
                 webhook_config=webhook_config,
                 on_event=on_event_callback,
+                request_id=request_id,  # Propagate request_id for trace continuity
             )
         except Exception as e:
             council_error = e
