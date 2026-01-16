@@ -76,8 +76,8 @@ async def run_council(
         event_data = {
             "event": payload.event,
             "data": {
-                "request_id": request_id,
                 **payload.data,
+                "request_id": request_id,  # After spread to prevent payload overwriting
             },
         }
         # Use call_soon_threadsafe for thread safety - this schedules the

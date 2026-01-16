@@ -18,6 +18,17 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# File locking - use fcntl on Unix, fallback to no-op on Windows
+try:
+    import fcntl
+
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
+
+# Maximum file size before truncation (1MB)
+MAX_METRICS_FILE_SIZE = 1024 * 1024
+
 # Lazy import of layer_contracts to avoid circular dependency
 # Used in _emit_rollback_event method
 
@@ -149,18 +160,25 @@ class RollbackMetricStore:
         self._load()
 
     def _load(self) -> None:
-        """Load metrics from persistent store."""
+        """Load metrics from persistent store with file locking."""
         if not os.path.exists(self.store_path):
             return
 
         try:
             with open(self.store_path, "r") as f:
-                for line in f:
-                    if line.strip():
-                        data = json.loads(line)
-                        record = MetricRecord.from_dict(data)
-                        metric_type = MetricType(record.metric_type)
-                        self._metrics[metric_type].append(record)
+                # Acquire shared lock for reading (Unix only)
+                if _HAS_FCNTL:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                try:
+                    for line in f:
+                        if line.strip():
+                            data = json.loads(line)
+                            record = MetricRecord.from_dict(data)
+                            metric_type = MetricType(record.metric_type)
+                            self._metrics[metric_type].append(record)
+                finally:
+                    if _HAS_FCNTL:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
             # Trim to window size
             for metric_type in self._metrics:
@@ -170,12 +188,61 @@ class RollbackMetricStore:
             self._metrics = defaultdict(list)
 
     def _save_record(self, record: MetricRecord) -> None:
-        """Append record to persistent store."""
+        """Append record to persistent store with file locking and size bounds."""
         try:
+            # Check file size and truncate if needed
+            if os.path.exists(self.store_path):
+                file_size = os.path.getsize(self.store_path)
+                if file_size > MAX_METRICS_FILE_SIZE:
+                    self._truncate_file()
+
             with open(self.store_path, "a") as f:
-                f.write(json.dumps(record.to_dict()) + "\n")
+                # Acquire exclusive lock for writing (Unix only)
+                if _HAS_FCNTL:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.write(json.dumps(record.to_dict()) + "\n")
+                    f.flush()
+                finally:
+                    # Release lock
+                    if _HAS_FCNTL:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         except IOError:
             pass  # Best effort persistence
+
+    def _truncate_file(self) -> None:
+        """Truncate file to keep only recent records (bounded storage)."""
+        try:
+            # Read all records
+            records = []
+            with open(self.store_path, "r") as f:
+                if _HAS_FCNTL:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                try:
+                    for line in f:
+                        if line.strip():
+                            records.append(line)
+                finally:
+                    if _HAS_FCNTL:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+            # Keep only last window_size * 5 records (reasonable history)
+            max_records = self.config.window_size * 5
+            if len(records) > max_records:
+                records = records[-max_records:]
+
+            # Rewrite file with truncated records
+            with open(self.store_path, "w") as f:
+                if _HAS_FCNTL:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.writelines(records)
+                    f.flush()
+                finally:
+                    if _HAS_FCNTL:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        except IOError:
+            pass  # Best effort truncation
 
     def record(self, metric_type: MetricType, value: float) -> None:
         """Record a metric value.
@@ -266,6 +333,12 @@ class RollbackMonitor:
         timeout_rate = self.store.get_rate(MetricType.WILDCARD_TIMEOUT)
         if timeout_rate > self.config.wildcard_timeout_threshold:
             self._breached[MetricType.WILDCARD_TIMEOUT] = True
+
+        # Check error rate (ADR-020: error_report_rate > baseline * 1.5)
+        error_rate = self.store.get_rate(MetricType.ERROR_RATE)
+        error_threshold = self._get_threshold(MetricType.ERROR_RATE)
+        if error_rate > error_threshold:
+            self._breached[MetricType.ERROR_RATE] = True
 
         return len(self._breached) > 0
 
